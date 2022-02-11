@@ -30,13 +30,10 @@ typedef struct {
   timer_idx_t timer_idx;
   size_t alarm_interval;
   timer_autoreload_t auto_reload;
+  bool ledStatus = false; // TODO: remove
 } example_timer_info_t;
-typedef struct {
-  example_timer_info_t info;
-  uint64_t timer_counter_value;
-} example_timer_event_t;
 
-static constexpr uint8_t TIMER_DIVIDER = 16u; // =5MHz
+static constexpr uint8_t TIMER_DIVIDER = 64u; // 16u; // =5MHz
 static constexpr size_t TIMER_SCALE = (TIMER_BASE_CLK / TIMER_DIVIDER);
 static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   BaseType_t high_task_awoken = pdFALSE;
@@ -48,6 +45,9 @@ static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   //
   /* Now just send the event data back to the main program task */
   portENTER_CRITICAL_ISR(&timerMux);
+
+  gpio_set_level(GPIO_NUM_21, info->ledStatus);
+  info->ledStatus = !info->ledStatus;
   //  Critical code here
   portEXIT_CRITICAL_ISR(&timerMux);
   if (!info->auto_reload) {
@@ -130,6 +130,7 @@ class Led {
 
 public:
   Led() = default;
+  bool getState() const { return mCurrentState; }
   void setup() {
     for (auto gpioNumber : mLedGpioNumbers) {
       gpio_reset_pin(gpioNumber);
@@ -187,14 +188,13 @@ void app_main() {
   timerSemaphore = xSemaphoreCreateBinary();
 #ifdef USE_GPTIMER
   TestGeneralPurposeTimerOldAPI *t = new TestGeneralPurposeTimerOldAPI;
+  gpio_reset_pin(GPIO_NUM_21);
+  gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
+  gpio_set_level(GPIO_NUM_21, led.getState());
   t->initGenericTimerOldAPI(50);
 #else
   initPeriodicTimer();
 #endif
   TaskHandle_t createdTaskHandle;
   xTaskCreate(myTask, "blinking_led_task", 4096, &led, 5, &createdTaskHandle);
-  //  ESP_ERROR_CHECK(esp_task_wdt_delete(
-  //      createdTaskHandle)); // TODO: temporal solution to make the routine
-  //      work
-  // without vTaskDelay
 }
