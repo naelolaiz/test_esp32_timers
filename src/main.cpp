@@ -30,7 +30,7 @@ typedef struct {
   timer_idx_t timer_idx;
   size_t alarm_interval;
   timer_autoreload_t auto_reload;
-  bool ledStatus = false; // TODO: remove
+  bool ledStatus = true; // TODO: remove
 } example_timer_info_t;
 
 static constexpr uint8_t TIMER_DIVIDER = 64u; // 16u; // =5MHz
@@ -46,7 +46,7 @@ static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   /* Now just send the event data back to the main program task */
   portENTER_CRITICAL_ISR(&timerMux);
 
-  gpio_set_level(GPIO_NUM_21, info->ledStatus);
+  gpio_set_level(GPIO_NUM_21, !info->ledStatus);
   info->ledStatus = !info->ledStatus;
   //  Critical code here
   portEXIT_CRITICAL_ISR(&timerMux);
@@ -190,8 +190,7 @@ void app_main() {
   TestGeneralPurposeTimerOldAPI *t = new TestGeneralPurposeTimerOldAPI;
   gpio_reset_pin(GPIO_NUM_21);
   gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
-  gpio_set_level(GPIO_NUM_21, led.getState());
-  t->initGenericTimerOldAPI(50);
+  t->initGenericTimerOldAPI(100);
 #else
   initPeriodicTimer();
 #endif
