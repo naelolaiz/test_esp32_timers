@@ -1,4 +1,5 @@
 #include <array>
+#include <cmath>
 #include <driver/gpio.h>
 #include <driver/timer.h>
 
@@ -11,19 +12,43 @@
 #include <esp_task_wdt.h>
 #include <soc/soc.h>
 
-#define USE_GPTIMER 1
-
-volatile SemaphoreHandle_t timerSemaphore;
+volatile SemaphoreHandle_t timerSemaphoreForHRTimer;
+volatile SemaphoreHandle_t timerSemaphoreForGPTimer;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-void IRAM_ATTR onTimer() {
-  portENTER_CRITICAL_ISR(&timerMux);
-  //  Critical code here
-  portEXIT_CRITICAL_ISR(&timerMux);
-  //  Give a semaphore that we can check in the loop
-  //  TIMERG0.hw_timer[0].config.alarm_en = 1;
-  xSemaphoreGiveFromISR(timerSemaphore, nullptr);
-}
 
+class HRTimerTest {
+public:
+  static constexpr gpio_num_t GPIO_FOR_HRTIMER_LED{GPIO_NUM_19};
+
+private:
+  bool mCurrentLedStatus{true};
+  static void periodic_timer_callback(void *arg) {
+
+    bool &ledStatus = *static_cast<bool *>(arg);
+
+    gpio_set_level(HRTimerTest::GPIO_FOR_HRTIMER_LED, ledStatus);
+    ledStatus ^= 1;
+    //    xSemaphoreGiveFromISR(timerSemaphore, nullptr);
+    //  xSemaphoreGive(timerSemaphore);
+  }
+
+public:
+  HRTimerTest() = default;
+  void initPeriodicTimer(size_t us) {
+    const esp_timer_create_args_t periodic_timer_args = {
+        .callback = &periodic_timer_callback,
+        .arg = &mCurrentLedStatus,
+        /* name is optional, but may help identify the timer when
+           debugging */
+        .name = "periodic_timer",
+        .skip_unhandled_events = false};
+
+    esp_timer_handle_t periodic_timer;
+    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, us));
+    /* The timer has been created but is not running yet */
+  }
+};
 /////////////
 typedef struct {
   timer_group_t timer_group;
@@ -33,8 +58,10 @@ typedef struct {
   bool ledStatus = true; // TODO: remove
 } example_timer_info_t;
 
-static constexpr uint8_t TIMER_DIVIDER = 64u; // 16u; // =5MHz
-static constexpr size_t TIMER_SCALE = (TIMER_BASE_CLK / TIMER_DIVIDER);
+static constexpr uint8_t TIMER_DIVIDER = 64u;
+static constexpr size_t TIMER_SCALER_S = TIMER_BASE_CLK / TIMER_DIVIDER;
+static constexpr double TIMER_SCALER_US =
+    0.000001 * TIMER_BASE_CLK / TIMER_DIVIDER;
 static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   BaseType_t high_task_awoken = pdFALSE;
   ///
@@ -46,43 +73,27 @@ static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   /* Now just send the event data back to the main program task */
   portENTER_CRITICAL_ISR(&timerMux);
 
-  gpio_set_level(GPIO_NUM_21, !info->ledStatus);
+  gpio_set_level(GPIO_NUM_21, info->ledStatus);
   info->ledStatus = !info->ledStatus;
   //  Critical code here
   portEXIT_CRITICAL_ISR(&timerMux);
   if (!info->auto_reload) {
-    timer_counter_value += info->alarm_interval; //  *TIMER_SCALE / 5;
+    timer_counter_value += info->alarm_interval;
     timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx,
                                        timer_counter_value);
   }
   //  Give a semaphore that we can check in the loop
   //  TIMERG0.hw_timer[0].config.alarm_en = 1;
-  xSemaphoreGiveFromISR(timerSemaphore, &high_task_awoken);
+  xSemaphoreGiveFromISR(timerSemaphoreForGPTimer, &high_task_awoken);
 
   return high_task_awoken ==
          pdTRUE; // return whether we need to yield at the end of ISR
-#if 0
-
-    /* Prepare basic event data that will be then sent back to task */
-    example_timer_event_t evt = {.info.timer_group = info->timer_group,
-                                 .info.timer_idx = info->timer_idx,
-                                 .info.auto_reload = info->auto_reload,
-                                 .info.alarm_interval = info->alarm_interval,
-                                 .timer_counter_value = timer_counter_value};
-
-    if (!info->auto_reload) {
-      timer_counter_value += info->alarm_interval * TIMER_SCALE;
-      timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx,
-                                         timer_counter_value);
-    }
-
-#endif
 }
 
 class TestGeneralPurposeTimerOldAPI {
   static void example_tg_timer_init(timer_group_t group, timer_idx_t timer,
                                     timer_autoreload_t auto_reload,
-                                    size_t timer_interval_sec) {
+                                    size_t timer_interval_usec) {
     /* Select and initialize basic parameters of the timer */
     timer_config_t config = {
         .alarm_en = TIMER_ALARM_EN,
@@ -99,9 +110,10 @@ class TestGeneralPurposeTimerOldAPI {
        alarm */
     timer_set_counter_value(group, timer, 0);
 
+    const size_t scaledInterval =
+        std::round(timer_interval_usec * TIMER_SCALER_US);
     /* Configure the alarm value and the interrupt on alarm. */
-    timer_set_alarm_value(group, timer,
-                          timer_interval_sec); // * TIMER_SCALE); // / 5);
+    timer_set_alarm_value(group, timer, scaledInterval);
     timer_enable_intr(group, timer);
 
     example_timer_info_t *timer_info = static_cast<example_timer_info_t *>(
@@ -109,7 +121,7 @@ class TestGeneralPurposeTimerOldAPI {
     timer_info->timer_group = group;
     timer_info->timer_idx = timer;
     timer_info->auto_reload = auto_reload;
-    timer_info->alarm_interval = timer_interval_sec;
+    timer_info->alarm_interval = scaledInterval;
     timer_isr_callback_add(group, timer, timer_group_isr_callback, timer_info,
                            0);
 
@@ -147,36 +159,16 @@ public:
     setValue(mCurrentState);
   }
 };
-static void periodic_timer_callback(void *arg) {
-  xSemaphoreGiveFromISR(timerSemaphore, nullptr);
-  //  xSemaphoreGive(timerSemaphore);
-}
-
 static void myTask(void *arg) {
   auto led = static_cast<Led *>(arg);
   while (1) {
     while (true) {
-      if (xSemaphoreTake(timerSemaphore, 0) == pdTRUE) {
+      if (xSemaphoreTake(timerSemaphoreForGPTimer, 0) == pdTRUE) {
         led->toggle();
       }
       // vTaskDelay(1);
     }
   }
-}
-
-void initPeriodicTimer() {
-  const esp_timer_create_args_t periodic_timer_args = {
-      .callback = &periodic_timer_callback,
-      .arg = nullptr,
-      /* name is optional, but may help identify the timer when
-         debugging */
-      .name = "periodic",
-      .skip_unhandled_events = false};
-
-  esp_timer_handle_t periodic_timer;
-  ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
-  ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 2));
-  /* The timer has been created but is not running yet */
 }
 
 extern "C" {
@@ -185,15 +177,30 @@ void app_main();
 static Led led;
 void app_main() {
   led.setup();
-  timerSemaphore = xSemaphoreCreateBinary();
-#ifdef USE_GPTIMER
-  TestGeneralPurposeTimerOldAPI *t = new TestGeneralPurposeTimerOldAPI;
+
+  timerSemaphoreForGPTimer = xSemaphoreCreateBinary();
+  timerSemaphoreForGPTimer = xSemaphoreCreateBinary();
+  constexpr size_t timeInUs = 400;
+  /////
+  TestGeneralPurposeTimerOldAPI *gpTimerTest =
+      new TestGeneralPurposeTimerOldAPI;
   gpio_reset_pin(GPIO_NUM_21);
   gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
-  t->initGenericTimerOldAPI(100);
-#else
-  initPeriodicTimer();
-#endif
-  TaskHandle_t createdTaskHandle;
-  xTaskCreate(myTask, "blinking_led_task", 4096, &led, 5, &createdTaskHandle);
+  gpTimerTest->initGenericTimerOldAPI(timeInUs);
+  ////
+  HRTimerTest *hrTimerTest = new HRTimerTest;
+  gpio_reset_pin(HRTimerTest::GPIO_FOR_HRTIMER_LED);
+  gpio_set_direction(HRTimerTest::GPIO_FOR_HRTIMER_LED, GPIO_MODE_OUTPUT);
+  hrTimerTest->initPeriodicTimer(timeInUs);
+  ////
+  // xTaskCreate(myTask, "blinking_led_task", 4096, &led, 5, nullptr);
+
+  // static constexpr int taskCore = 0;
+  // xTaskCreatePinnedToCore(myTask, /* Function to implement the task */
+  //                         "blinking_led_task", /* Name of the task */
+  //                         4096,                /* Stack size in words */
+  //                         &led,                /* Task input parameter */
+  //                         10,                  /* Priority of the task */
+  //                         nullptr,             /* Task handle. */
+  //                         taskCore); /* Core where the task should run */
 }
