@@ -90,8 +90,3 @@ Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::
   gpio_set_level(mTaskData.mOutputConfigForTask.mGpioPin,
                  mTaskData.mOutputConfigForTask.mCurrentOutputStatus);
 }
-Timer::TaskData
-    Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::mTaskData = {
-        .mOutputConfigForISR = {.mGpioPin = GPIO_NUM_21},
-        .mOutputConfigForTask = {.mGpioPin = GPIO_NUM_22},
-        .mTimerMux = portMUX_INITIALIZER_UNLOCKED};

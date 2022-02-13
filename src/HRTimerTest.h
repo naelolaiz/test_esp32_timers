@@ -5,10 +5,12 @@
 namespace Timer {
 namespace HighResolutionTimerTest {
 class HRTimerTest {
-  static TaskData mTaskData;
+  TaskData mTaskData = {.mOutputConfigForISR = {.mGpioPin = GPIO_NUM_19},
+                        .mOutputConfigForTask = {.mGpioPin = GPIO_NUM_18},
+                        .mTimerMux = portMUX_INITIALIZER_UNLOCKED};
 
 public:
-  static TaskData &getTaskData();
+  TaskData &getTaskData();
 
 private:
   bool mCurrentLedStatus{true};

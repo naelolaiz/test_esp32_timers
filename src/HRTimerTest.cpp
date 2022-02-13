@@ -42,7 +42,3 @@ void Timer::HighResolutionTimerTest::HRTimerTest::initPeriodicTimer(size_t us) {
   ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, us));
   /* The timer has been created but is not running yet */
 }
-Timer::TaskData Timer::HighResolutionTimerTest::HRTimerTest::mTaskData = {
-    .mOutputConfigForISR = {.mGpioPin = GPIO_NUM_19},
-    .mOutputConfigForTask = {.mGpioPin = GPIO_NUM_18},
-    .mTimerMux = portMUX_INITIALIZER_UNLOCKED};

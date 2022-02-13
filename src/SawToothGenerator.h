@@ -7,6 +7,6 @@ class SawToothGenerator {
   const gpio_num_t mGpioNumber;
 
 public:
-  SawToothGenerator(gpio_num_t gpioNumber) : mGpioNumber(gpioNumber) {}
+  SawToothGenerator(gpio_num_t gpioNumber);
+  void start(size_t frequency) {}
 };
-extern SawToothGenerator sawToothGenerator(GPIO_NUM_25);
