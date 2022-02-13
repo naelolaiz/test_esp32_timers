@@ -56,4 +56,4 @@ public:
   void init();
 };
 
-extern UartInput myUart;
+// extern UartInput myUart;

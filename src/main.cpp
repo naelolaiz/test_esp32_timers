@@ -27,6 +27,7 @@ extern "C" {
 void app_main();
 }
 void app_main() {
+  ESP_LOGE("main", "starting...");
   using namespace Timer;
 
   constexpr size_t timeInUs = 500;
@@ -36,10 +37,13 @@ void app_main() {
   auto *hrTimerTest = new HighResolutionTimerTest::HRTimerTest;
   hrTimerTest->initPeriodicTimer(timeInUs);
 
-  xTaskCreate(myTask, "blinking_led_task_gp", 4096, &gpTimerTest->getTaskData(),
-              6, nullptr);
-  xTaskCreate(myTask, "blinking_led_task_gp", 4096, &hrTimerTest->getTaskData(),
-              5, nullptr);
+  auto *sawToothGenerator = new Generator::SawToothGenerator(GPIO_NUM_25);
+  sawToothGenerator->start(500);
+
+  // xTaskCreate(myTask, "blinking_led_task_gp", 4096,
+  // &gpTimerTest->getTaskData(), 6, nullptr);
+  // xTaskCreate(myTask, "blinking_led_task_hr", 4096,
+  // &hrTimerTest->getTaskData(), 5, nullptr);
 
   // static constexpr int taskCore = 0;
   // xTaskCreatePinnedToCore(myTask, /* Function to implement the task */

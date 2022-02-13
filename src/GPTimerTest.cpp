@@ -1,10 +1,22 @@
 #include "GPTimerTest.h"
-bool Timer::GeneralPurposeTimerTest::timer_group_isr_callback(void *args) {
+
+namespace Timer {
+namespace GeneralPurposeTimerTest {
+typedef struct {
+  timer_group_t timer_group;
+  timer_idx_t timer_idx;
+  size_t alarm_interval;
+  timer_autoreload_t auto_reload;
+} TimerInfo;
+} // namespace GeneralPurposeTimerTest
+} // namespace Timer
+
+static bool
+Timer::GeneralPurposeTimerTest::timer_group_isr_callback(void *args) {
   BaseType_t high_task_awoken = pdFALSE;
   ///
   TaskData *taskData = static_cast<TaskData *>(args);
-  example_timer_info_t *info =
-      static_cast<example_timer_info_t *>(taskData->mExtraCtx);
+  TimerInfo *info = static_cast<TimerInfo *>(taskData->mExtraCtx);
 
   uint64_t timer_counter_value =
       timer_group_get_counter_value_in_isr(info->timer_group, info->timer_idx);
@@ -58,8 +70,8 @@ void Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::
   timer_set_alarm_value(group, timer, scaledInterval);
   timer_enable_intr(group, timer);
 
-  example_timer_info_t *timer_info = static_cast<example_timer_info_t *>(
-      calloc(1, sizeof(example_timer_info_t)));
+  TimerInfo *timer_info =
+      static_cast<TimerInfo *>(calloc(1, sizeof(TimerInfo)));
   timer_info->timer_group = group;
   timer_info->timer_idx = timer;
   timer_info->auto_reload = auto_reload;
@@ -75,6 +87,11 @@ void Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::
 void Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::
     initGenericTimerOldAPI(size_t timeout) {
   example_tg_timer_init(TIMER_GROUP_0, TIMER_0, TIMER_AUTORELOAD_EN, timeout);
+}
+
+Timer::TaskData &
+Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::getTaskData() {
+  return mTaskData;
 }
 
 Timer::GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI::
