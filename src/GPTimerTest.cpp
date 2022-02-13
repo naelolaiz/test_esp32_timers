@@ -1,6 +1,5 @@
 #include "GPTimerTest.h"
-bool IRAM_ATTR
-Timer::GeneralPurposeTimerTest::timer_group_isr_callback(void *args) {
+bool Timer::GeneralPurposeTimerTest::timer_group_isr_callback(void *args) {
   BaseType_t high_task_awoken = pdFALSE;
   ///
   TaskData *taskData = static_cast<TaskData *>(args);
