@@ -31,7 +31,8 @@ static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   //
   //  generatorData->mOutputConfigForISR.mCurrentOutputStatus ^= 1;
 
-  dac_output_voltage(DAC_CHANNEL_1, ++generatorData->mCurrentValue);
+  dac_output_voltage(generatorData->mDacChannel,
+                     ++generatorData->mCurrentValue);
   //  Critical code here
   //  portEXIT_CRITICAL_ISR(&generatorData->mTimerMux);
   if (!info->auto_reload) {
@@ -91,19 +92,24 @@ void Generator::SawToothGenerator::initTimer(timer_group_t group,
 void Generator::SawToothGenerator::initGenerator(size_t freqInHz) {
 
   ESP_ERROR_CHECK(gpio_reset_pin(mGeneratorData.mGpioNum));
-  ESP_ERROR_CHECK(gpio_set_direction(GPIO_NUM_25, GPIO_MODE_OUTPUT));
-  ESP_ERROR_CHECK(gpio_set_direction(GPIO_NUM_26, GPIO_MODE_OUTPUT));
-  // gpio_set_direction(mGeneratorData.mGpioNum, GPIO_MODE_OUTPUT));
-
-  //  ESP_ERROR_CHECK(i2s_set_dac_mode(I2S_DAC_CHANNEL_BOTH_EN));
-  // ESP_ERROR_CHECK(dac_i2s_enable());
-  ESP_ERROR_CHECK(dac_output_enable(DAC_CHANNEL_1));
   ESP_ERROR_CHECK(
-      dac_output_voltage(DAC_CHANNEL_1, mGeneratorData.mCurrentValue));
+      gpio_set_direction(mGeneratorData.mGpioNum, GPIO_MODE_OUTPUT));
+
+  ESP_ERROR_CHECK(dac_output_enable(mGeneratorData.mDacChannel));
+  ESP_ERROR_CHECK(dac_output_voltage(mGeneratorData.mDacChannel,
+                                     mGeneratorData.mCurrentValue));
 }
 
-Generator::SawToothGenerator::SawToothGenerator(gpio_num_t gpioNumber) {
+Generator::SawToothGenerator::SawToothGenerator(gpio_num_t gpioNumber,
+                                                uint8_t startValue) {
+  if (gpioNumber != GPIO_NUM_25 && gpioNumber != GPIO_NUM_26) {
+    ESP_LOGI("SweepManager", "Incorrect DAC gpio requested. Aborting");
+    return;
+  }
   mGeneratorData.mGpioNum = gpioNumber;
+  mGeneratorData.mDacChannel =
+      mGeneratorData.mGpioNum == GPIO_NUM_25 ? DAC_CHANNEL_1 : DAC_CHANNEL_2;
+  mGeneratorData.mCurrentValue = startValue;
 }
 
 void Generator::SawToothGenerator::start(size_t freqInHz) {

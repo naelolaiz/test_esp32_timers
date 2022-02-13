@@ -37,13 +37,15 @@ void app_main() {
   auto *hrTimerTest = new HighResolutionTimerTest::HRTimerTest;
   hrTimerTest->initPeriodicTimer(timeInUs);
 
-  auto *sawToothGenerator = new Generator::SawToothGenerator(GPIO_NUM_25);
-  sawToothGenerator->start(500);
+  auto *sawToothGenerator1 = new Generator::SawToothGenerator(GPIO_NUM_25, 0);
+  sawToothGenerator1->start(300);
+  auto *sawToothGenerator2 = new Generator::SawToothGenerator(GPIO_NUM_25, 127);
+  sawToothGenerator2->start(300);
 
-  // xTaskCreate(myTask, "blinking_led_task_gp", 4096,
-  // &gpTimerTest->getTaskData(), 6, nullptr);
-  // xTaskCreate(myTask, "blinking_led_task_hr", 4096,
-  // &hrTimerTest->getTaskData(), 5, nullptr);
+  xTaskCreate(myTask, "blinking_led_task_gp", 4096, &gpTimerTest->getTaskData(),
+              6, nullptr);
+  xTaskCreate(myTask, "blinking_led_task_hr", 4096, &hrTimerTest->getTaskData(),
+              5, nullptr);
 
   // static constexpr int taskCore = 0;
   // xTaskCreatePinnedToCore(myTask, /* Function to implement the task */
