@@ -51,9 +51,13 @@ public:
     gpio_reset_pin(mTaskData.mOutputConfigForISR.mGpioPin);
     gpio_set_direction(mTaskData.mOutputConfigForISR.mGpioPin,
                        GPIO_MODE_OUTPUT);
+    gpio_set_level(mTaskData.mOutputConfigForISR.mGpioPin,
+                   mTaskData.mOutputConfigForISR.mCurrentOutputStatus);
     gpio_reset_pin(mTaskData.mOutputConfigForTask.mGpioPin);
     gpio_set_direction(mTaskData.mOutputConfigForTask.mGpioPin,
                        GPIO_MODE_OUTPUT);
+    gpio_set_level(mTaskData.mOutputConfigForTask.mGpioPin,
+                   mTaskData.mOutputConfigForTask.mCurrentOutputStatus);
   }
   void initPeriodicTimer(size_t us) {
     const esp_timer_create_args_t periodic_timer_args = {
@@ -82,7 +86,6 @@ typedef struct {
   timer_idx_t timer_idx;
   size_t alarm_interval;
   timer_autoreload_t auto_reload;
-  bool ledStatus = true; // TODO: remove
 } example_timer_info_t;
 
 static bool IRAM_ATTR timer_group_isr_callback(void *args) {
@@ -177,9 +180,13 @@ public:
     gpio_reset_pin(mTaskData.mOutputConfigForISR.mGpioPin);
     gpio_set_direction(mTaskData.mOutputConfigForISR.mGpioPin,
                        GPIO_MODE_OUTPUT);
+    gpio_set_level(mTaskData.mOutputConfigForISR.mGpioPin,
+                   mTaskData.mOutputConfigForISR.mCurrentOutputStatus);
     gpio_reset_pin(mTaskData.mOutputConfigForTask.mGpioPin);
     gpio_set_direction(mTaskData.mOutputConfigForTask.mGpioPin,
                        GPIO_MODE_OUTPUT);
+    gpio_set_level(mTaskData.mOutputConfigForTask.mGpioPin,
+                   mTaskData.mOutputConfigForTask.mCurrentOutputStatus);
   }
 };
 
@@ -190,7 +197,7 @@ TaskData TestGeneralPurposeTimerOldAPI::mTaskData = {
 } // namespace GeneralPurposeTimerTest
 
 class Led {
-  const std::array<gpio_num_t, 2> mLedGpioNumbers{GPIO_NUM_5, GPIO_NUM_22};
+  const std::array<gpio_num_t, 2> mLedGpioNumbers{GPIO_NUM_5};
   const bool mInitialState{false};
   bool mCurrentState{false};
 
@@ -234,7 +241,7 @@ static Led led;
 void app_main() {
   led.setup();
 
-  constexpr size_t timeInUs = 100;
+  constexpr size_t timeInUs = 500;
   /////
   auto *gpTimerTest =
       new GeneralPurposeTimerTest::TestGeneralPurposeTimerOldAPI;
@@ -245,7 +252,7 @@ void app_main() {
 
   ////
   xTaskCreate(myTask, "blinking_led_task_gp", 4096, &gpTimerTest->getTaskData(),
-              5, nullptr);
+              6, nullptr);
   xTaskCreate(myTask, "blinking_led_task_gp", 4096, &hrTimerTest->getTaskData(),
               5, nullptr);
 
