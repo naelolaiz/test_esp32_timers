@@ -6,25 +6,19 @@
 #include <esp_log.h>
 
 namespace Generator {
-typedef struct {
-  timer_group_t timer_group;
-  timer_idx_t timer_idx;
-  size_t alarm_interval;
-  timer_autoreload_t auto_reload;
-} TimerInfo;
 
 static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   BaseType_t high_task_awoken = pdFALSE;
   ///
   SawToothGenerator::GeneratorData *generatorData =
       static_cast<SawToothGenerator::GeneratorData *>(args);
-  TimerInfo *info = static_cast<TimerInfo *>(generatorData->mExtraCtx);
 
-  uint64_t timer_counter_value =
-      timer_group_get_counter_value_in_isr(info->timer_group, info->timer_idx);
+  uint64_t timer_counter_value = timer_group_get_counter_value_in_isr(
+      generatorData->mTimerInfo.timer_group,
+      generatorData->mTimerInfo.timer_idx);
   //
   /* Now just send the event data back to the main program task */
-  //  portENTER_CRITICAL_ISR(&generatorData->mTimerMux);
+  portENTER_CRITICAL_ISR(&generatorData->mTimerMux);
 
   // gpio_set_level(generatorData->mOutputConfigForISR.mGpioPin,
   //                generatorData->mOutputConfigForISR.mCurrentOutputStatus);
@@ -34,10 +28,11 @@ static bool IRAM_ATTR timer_group_isr_callback(void *args) {
   dac_output_voltage(generatorData->mDacChannel,
                      ++generatorData->mCurrentValue);
   //  Critical code here
-  //  portEXIT_CRITICAL_ISR(&generatorData->mTimerMux);
-  if (!info->auto_reload) {
-    timer_counter_value += info->alarm_interval;
-    timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx,
+  portEXIT_CRITICAL_ISR(&generatorData->mTimerMux);
+  if (!generatorData->mTimerInfo.auto_reload) {
+    timer_counter_value += generatorData->mTimerInfo.alarm_interval;
+    timer_group_set_alarm_value_in_isr(generatorData->mTimerInfo.timer_group,
+                                       generatorData->mTimerInfo.timer_idx,
                                        timer_counter_value);
   }
   //  Give a semaphore that we can check in the loop
@@ -77,13 +72,10 @@ void Generator::SawToothGenerator::initTimer(timer_group_t group,
   timer_set_alarm_value(group, timer, scaledInterval);
   timer_enable_intr(group, timer);
 
-  TimerInfo *timer_info =
-      static_cast<TimerInfo *>(calloc(1, sizeof(TimerInfo)));
-  timer_info->timer_group = group;
-  timer_info->timer_idx = timer;
-  timer_info->auto_reload = auto_reload;
-  timer_info->alarm_interval = scaledInterval;
-  mGeneratorData.mExtraCtx = static_cast<void *>(timer_info);
+  mGeneratorData.mTimerInfo.timer_group = group;
+  mGeneratorData.mTimerInfo.timer_idx = timer;
+  mGeneratorData.mTimerInfo.auto_reload = auto_reload;
+  mGeneratorData.mTimerInfo.alarm_interval = scaledInterval;
   timer_isr_callback_add(group, timer, Generator::timer_group_isr_callback,
                          &mGeneratorData, 0);
 
@@ -112,16 +104,12 @@ Generator::SawToothGenerator::SawToothGenerator(gpio_num_t gpioNumber,
   mGeneratorData.mCurrentValue = startValue;
 }
 
-void Generator::SawToothGenerator::start(size_t freqInHz) {
+void Generator::SawToothGenerator::start(size_t freqInHz,
+                                         timer_idx_t timerIdx) {
   initGenerator(freqInHz);
   const size_t periodInUs = round((1000000. / freqInHz) / 255.);
   ESP_LOGE("SweepGenerator", "setting timer to %u uS", periodInUs);
-  initTimer(TIMER_GROUP_1, TIMER_0, TIMER_AUTORELOAD_EN, periodInUs);
-}
-
-const Generator::SawToothGenerator::GeneratorData &
-Generator::SawToothGenerator::getGeneratorData() const {
-  return mGeneratorData;
+  initTimer(TIMER_GROUP_1, timerIdx, TIMER_AUTORELOAD_EN, periodInUs);
 }
 
 // extern Generator::SawToothGenerator sawToothGenerator(GPIO_NUM_25, 1000);

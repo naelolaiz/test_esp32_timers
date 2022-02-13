@@ -38,9 +38,9 @@ void app_main() {
   hrTimerTest->initPeriodicTimer(timeInUs);
 
   auto *sawToothGenerator1 = new Generator::SawToothGenerator(GPIO_NUM_25, 0);
-  sawToothGenerator1->start(300);
-  auto *sawToothGenerator2 = new Generator::SawToothGenerator(GPIO_NUM_25, 127);
-  sawToothGenerator2->start(300);
+  sawToothGenerator1->start(300, TIMER_0);
+  auto *sawToothGenerator2 = new Generator::SawToothGenerator(GPIO_NUM_26, 0);
+  sawToothGenerator2->start(300, TIMER_1);
 
   xTaskCreate(myTask, "blinking_led_task_gp", 4096, &gpTimerTest->getTaskData(),
               6, nullptr);

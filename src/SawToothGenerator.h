@@ -1,21 +1,33 @@
 #pragma once
 #include "TaskData.h"
+#include <array>
 #include <driver/dac_common.h>
 #include <driver/gpio.h>
 #include <driver/timer.h>
+//#include <freertos/FreeRTOS.h>
+//#include <freertos/
 
 namespace Generator {
+
+typedef struct {
+  timer_group_t timer_group;
+  timer_idx_t timer_idx;
+  size_t alarm_interval;
+  timer_autoreload_t auto_reload;
+} TimerInfo;
+
 class SawToothGenerator {
 public:
   struct GeneratorData {
     gpio_num_t mGpioNum;
     dac_channel_t mDacChannel;
     uint8_t mCurrentValue{0};
-    uint8_t mStep{1};
-    void *mExtraCtx{nullptr};
+    portMUX_TYPE mTimerMux = portMUX_INITIALIZER_UNLOCKED;
+    TimerInfo mTimerInfo;
   };
 
 private:
+  // std::array<GeneratorData, 2> mGeneratorData;
   GeneratorData mGeneratorData;
   static constexpr uint8_t TIMER_DIVIDER = 2u;
   static constexpr size_t TIMER_SCALER_S = TIMER_BASE_CLK / TIMER_DIVIDER;
@@ -28,7 +40,6 @@ private:
 
 public:
   SawToothGenerator(gpio_num_t gpioNumber, uint8_t startValue);
-  void start(size_t freqInHz);
-  const GeneratorData &getGeneratorData() const;
+  void start(size_t freqInHz, timer_idx_t timerIdx);
 };
 } // namespace Generator
